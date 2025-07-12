@@ -1,3 +1,5 @@
+# streamlit_app.py
+
 import os
 import pickle
 import numpy as np
@@ -9,6 +11,7 @@ import mplcursors
 import streamlit as st
 
 # ----- 設定 -----
+# スクリプトファイルのディレクトリを基準に gui ディレクトリを参照
 BASE_DIR = os.path.dirname(__file__)
 DATA_DIR = os.path.join(BASE_DIR, "gui")
 
@@ -34,17 +37,18 @@ else:
             return pickle.load(f)
 
     def plot_all(data):
-        # 必要なデータを取得
+        # pickle 内のデータ構造に対応
         df_segment    = data['df_segment']
         master_df     = data['master_df']
         current_max   = data['current_max']
         mod_remaining = data['mod_remaining']
-        name          = data['name']
-        formatted_ts0 = data['formatted_ts0']
-        durations     = list(range(1, 41))
+        name          = data.get('name', '')
+        formatted_ts0 = data.get('formatted_ts0', '')
+
+        durations = list(range(1, 41))
         dashboard_durations = [1, 5, 10, 20, 30, 40]
 
-        # 日付フォーマットと Today's best を動的に生成
+        # Best Dashboard 用の日付表示と Today's Dashboard を動的生成
         formatted_dates = {
             d: master_df.at[d, 'date'] if master_df.at[d, 'date'] else '—'
             for d in dashboard_durations
@@ -57,8 +61,7 @@ else:
             f"Data analysis ({name}) {formatted_ts0}", x=0.01, y=0.99,
             ha='left', fontsize=16, fontweight='bold'
         )
-        gs = GridSpec(2, 3, figure=fig,
-                      width_ratios=[3, 1.2, 1.2],
+        gs = GridSpec(2, 3, figure=fig, width_ratios=[3, 1.2, 1.2],
                       hspace=0.15, wspace=0.8)
 
         # (1) Power & MOD
@@ -90,7 +93,7 @@ else:
         ax2.set_xlabel("Time")
         ax2.xaxis.set_major_formatter(DateFormatter("%H:%M:%S"))
         ax2b = ax2.twinx()
-        ax2b.plot(df_segment.index, df_segment['cadence'], color='green', lw=2, label='Cadence [rpm]')
+        ax2b.plot(df_segment.index, df_segment['cadence'], lw=2, label='Cadence [rpm]')
         ax2b.set_ylabel("Cadence [rpm]")
         h1, l1 = ax2.get_legend_handles_labels()
         h2, l2 = ax2b.get_legend_handles_labels()
@@ -104,8 +107,7 @@ else:
             for d in dashboard_durations
         ]
         ax_dash.text(
-            0, 1,
-            "Best Dashboard\n\n" + "\n".join(lines),
+            0, 1, "Best Dashboard\n\n" + "\n".join(lines),
             va='top', ha='left', fontsize=12, family='monospace',
             bbox=dict(boxstyle='round,pad=1', fc='#f9f9f9', ec='gray', alpha=0.7)
         )
@@ -118,8 +120,7 @@ else:
             for d in dashboard_durations
         ]
         ax_today.text(
-            0, 1,
-            "Today's Dashboard\n\n" + "\n".join(today_lines),
+            0, 1, "Today's Dashboard\n\n" + "\n".join(today_lines),
             va='top', ha='left', fontsize=12, family='monospace',
             bbox=dict(boxstyle='round,pad=1', fc='#fffbe6', ec='gray', alpha=0.8)
         )
@@ -127,12 +128,10 @@ else:
         # (5) Power–Duration Curve
         ax_curve = fig.add_subplot(gs[1, 1:3])
         baseline = [master_df.at[d,'max_power'] for d in durations]
-        ax_curve.plot(durations,
-                      [current_max.get(d, 0) for d in durations],
-                      '-o', label='Analysis PD')
-        ax_curve.plot(durations, baseline, '-s', label='Best PD')
+        ax_curve.plot(durations,[current_max.get(d,0) for d in durations],'-o',label='Analysis PD')
+        ax_curve.plot(durations,baseline,'-s',label='Best PD')
         for i, d in enumerate(durations):
-            if baseline[i] < current_max.get(d, 0):
+            if baseline[i] < current_max.get(d,0):
                 ax_curve.plot(d, baseline[i], 's', ms=8, color='red')
         ax_curve.set_xticks(durations)
         ax_curve.set_xlabel("Duration [s]")
@@ -142,19 +141,12 @@ else:
         ax_curve.legend(loc='upper right')
 
         fig.subplots_adjust(top=0.92, left=0.05, right=0.98, bottom=0.06)
-
-        # ホバーで値を表示
-        for ax in fig.axes:
-            mplcursors.cursor(ax, hover=True)
-
+        mplcursors.cursor(fig.axes, hover=True)
         st.pyplot(fig)
 
     # 選択されたファイルを描画
-    try:
-        data = load_data(selected)
-        if not isinstance(data, dict):
-            st.error("Data format error: please run prepare_gui_data.py before this app")
-        else:
-            plot_all(data)
-    except Exception as e:
-        st.error(f"Failed to load GUI data: {e}")
+    data = load_data(selected)
+    if not isinstance(data, dict):
+        st.error("Data format error: prepare_gui_data.py で再生成してください。")
+    else:
+        plot_all(data)
